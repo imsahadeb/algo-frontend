@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ChartWidget from "./ChartWidget";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -9,6 +10,33 @@ export default function Dashboard() {
   
   const [marketWatch, setMarketWatch] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
+  const [selectedSymbol, setSelectedSymbol] = useState("NSE:NIFTY");
+  const [timeframe, setTimeframe] = useState("1D");
+  const [panelHeight, setPanelHeight] = useState(60);
+
+  const startDrag = (e: React.MouseEvent) => {
+     e.preventDefault();
+     const startY = e.clientY;
+     const startHeight = panelHeight;
+
+     const onMouseMove = (moveEvt: MouseEvent) => {
+        const delta = moveEvt.clientY - startY;
+        const deltaPercent = (delta / window.innerHeight) * 100;
+        let newH = startHeight + deltaPercent;
+        if (newH < 20) newH = 20;
+        if (newH > 85) newH = 85;
+        setPanelHeight(newH);
+     };
+
+     const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        window.dispatchEvent(new Event('resize')); 
+     };
+
+     document.addEventListener("mousemove", onMouseMove);
+     document.addEventListener("mouseup", onMouseUp);
+  };
 
   useEffect(() => {
     setIsClient(true);
@@ -137,18 +165,27 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {marketWatch.length === 0 && (
-              <div className="p-4 text-center text-xs text-zinc-600 font-bold uppercase tracking-widest mt-10">
-                 Loading Market Data...
-              </div>
-            )}
-            {marketWatch.map((item, idx) => {
-              const changeStr = String(item.change);
-              const isPos = changeStr.startsWith("+") || parseFloat(changeStr) > 0;
-              return (
-                <div key={idx} className="flex items-center justify-between p-3 border-b border-zinc-800/50 hover:bg-[#1a1a1a] cursor-pointer group transition-colors">
-                  <div>
-                    <span className="block text-xs font-bold text-zinc-200">{item.symbol}</span>
+              {marketWatch.length === 0 && (
+                <div className="p-4 text-center text-xs text-zinc-600 font-bold uppercase tracking-widest mt-10">
+                   Loading Market Data...
+                </div>
+              )}
+              {marketWatch.map((item, idx) => {
+                const changeStr = String(item.change);
+                const isPos = changeStr.startsWith("+") || parseFloat(changeStr) > 0;
+                
+                // Format for TradingView compatibility
+                const tvSymbol = "NSE:" + item.symbol.replace(" 50", "");
+                const isSelected = selectedSymbol === tvSymbol;
+                
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => setSelectedSymbol(tvSymbol)}
+                    className={`flex items-center justify-between p-3 border-b border-zinc-800/50 cursor-pointer transition-colors ${isSelected ? 'bg-zinc-800/80' : 'hover:bg-[#1a1a1a] group'}`}
+                  >
+                    <div>
+                      <span className="block text-xs font-bold text-zinc-200">{item.symbol}</span>
                     <span className="block text-[10px] text-zinc-600 font-mono mt-0.5">NSE_EQ</span>
                   </div>
                   <div className="text-right">
@@ -167,15 +204,21 @@ export default function Dashboard() {
         <div className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a]">
           
           {/* Chart Placeholder Area */}
-          <div className="h-[55%] border-b border-zinc-800/80 flex flex-col relative group">
+          <div style={{ height: `${panelHeight}%` }} className="border-b border-zinc-800/80 flex flex-col relative group shrink-0">
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none opacity-50"></div>
             
-            <div className="h-10 border-b border-zinc-800/80 flex items-center px-4 justify-between bg-[#0f0f0f] z-10 shrink-0">
-              <div className="flex items-center gap-4 text-[10px] font-bold tracking-widest text-zinc-400">
-                <span className="text-zinc-200 border-b-2 border-emerald-500 pb-[10px] pt-[8px]">NIFTY 50 . 1M</span>
-                <span className="hover:text-zinc-200 cursor-pointer">5M</span>
-                <span className="hover:text-zinc-200 cursor-pointer">15M</span>
-                <span className="hover:text-zinc-200 cursor-pointer">1D</span>
+            <div className="h-10 border-b border-zinc-800/80 flex items-center px-4 justify-between bg-[#0a0a0a] z-10 shrink-0">
+              <div className="flex items-center text-[12px] font-bold tracking-wide text-zinc-400 h-full">
+                <span className="text-zinc-200 border-r border-zinc-700/50 pr-4 mr-3">{selectedSymbol.replace("NSE:", "")}</span>
+                <span className="cursor-pointer hover:bg-zinc-800/30 p-1.5 rounded-full mr-4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg></span>
+                
+                {['1m', '5m', '15m', '30m', '1H', '1D', '1W', '1M'].map(tf => (
+                   <button 
+                     key={tf} 
+                     onClick={() => setTimeframe(tf)}
+                     className={`px-2 py-0.5 mx-0.5 rounded transition-colors ${timeframe === tf ? 'text-[#2962FF]' : 'hover:bg-zinc-800/60 text-zinc-300'}`}
+                   >{tf}</button>
+                ))}
               </div>
               <div className="flex gap-2">
                 <button className="px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] tracking-widest rounded">BUY</button>
@@ -183,18 +226,26 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="flex-1 flex items-center justify-center relative overflow-hidden">
-               {/* Aesthetic Chart lines */}
-               <svg className="absolute inset-0 w-full h-full opacity-30" preserveAspectRatio="none" viewBox="0 0 100 100">
-                  <polyline fill="none" stroke="#10b981" strokeWidth="0.5" points="0,80 10,75 20,85 30,50 40,60 50,40 60,45 70,20 80,30 90,10 100,15" />
-                  <polyline fill="rgba(16,185,129,0.1)" stroke="none" points="0,100 0,80 10,75 20,85 30,50 40,60 50,40 60,45 70,20 80,30 90,10 100,15 100,100" />
-               </svg>
-               <p className="text-xs text-zinc-700 tracking-widest font-bold z-10 border border-zinc-800 bg-[#0a0a0a]/80 px-4 py-2 rounded">SMARTAPI STREAMING CHART (PLACEHOLDER)</p>
+            <div className="flex-1 relative overflow-hidden bg-[#0a0a0a] p-0">
+              <ChartWidget 
+                symbol={selectedSymbol} 
+                timeframe={timeframe}
+                onTimeframeChange={setTimeframe}
+                ltp={Number(marketWatch.find(m => "NSE:" + m.symbol.replace(" 50", "") === selectedSymbol)?.ltp || 0)} 
+              />
             </div>
           </div>
 
+          {/* Horizontal Resizer Drag Handle */}
+          <div 
+             onMouseDown={startDrag} 
+             className="h-[5px] w-full cursor-row-resize bg-zinc-800/80 hover:bg-[#2962FF]/80 active:bg-[#2962FF] z-20 shrink-0 transition-colors shadow-2xl relative"
+          >
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-[2px] bg-zinc-400 rounded-full pointer-events-none" />
+          </div>
+
           {/* Bottom Panel: Positions & Orders */}
-          <div className="flex-1 flex flex-col min-h-[300px]">
+          <div className="flex-1 flex flex-col min-h-0 bg-[#0a0a0a]">
             <div className="h-10 border-b border-zinc-800/80 bg-[#0f0f0f] flex items-center gap-1 px-2 shrink-0">
               <button className="px-4 h-full border-b-2 border-emerald-500 text-zinc-200 text-[10px] font-bold tracking-widest">OPEN POSITIONS (3)</button>
               <button className="px-4 h-full text-zinc-500 hover:text-zinc-300 transition-colors text-[10px] font-bold tracking-widest">ORDER BOOK</button>
